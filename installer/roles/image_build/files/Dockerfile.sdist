@@ -1,24 +1,29 @@
-FROM centos:7
+FROM debian:buster
 
-RUN yum -y update && yum -y install epel-release && yum -y install https://centos7.iuscommunity.org/ius-release.rpm
+RUN apt-get update -y
 
-RUN yum install -y bzip2 \
-    gcc-c++ \
-    gettext \
-    git2u \
-    git2u-core \
-    make \
-    nodejs \
-    python36-setuptools
+RUN apt-get install -y bzip2 \
+	g++ \
+	gettext \
+	git-lfs \
+	make \
+	curl \
+	python3-setuptools \
+	build-essential
+
+RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
+
+RUN apt-get install -y nodejs
 
 # Use the distro provided npm to bootstrap our required version of node
 RUN npm install -g n
 RUN n 10.15.0
-RUN yum remove -y nodejs
 
 ENV PATH=/usr/local/n/versions/node/10.15.0/bin:$PATH
 
 WORKDIR "/awx"
+
+RUN npm i -g npm
 
 ENTRYPOINT ["/bin/bash", "-c"]
 CMD ["make sdist"]
