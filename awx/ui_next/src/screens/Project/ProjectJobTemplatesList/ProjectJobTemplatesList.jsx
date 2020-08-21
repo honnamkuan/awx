@@ -27,7 +27,13 @@ function ProjectJobTemplatesList({ i18n }) {
   const location = useLocation();
 
   const {
-    result: { jobTemplates, itemCount, actions },
+    result: {
+      jobTemplates,
+      itemCount,
+      actions,
+      relatedSearchableKeys,
+      searchableKeys,
+    },
     error: contentError,
     isLoading,
     request: fetchTemplates,
@@ -43,12 +49,20 @@ function ProjectJobTemplatesList({ i18n }) {
         jobTemplates: response.data.results,
         itemCount: response.data.count,
         actions: actionsResponse.data.actions,
+        relatedSearchableKeys: (
+          actionsResponse?.data?.related_search_fields || []
+        ).map(val => val.slice(0, -8)),
+        searchableKeys: Object.keys(
+          actionsResponse.data.actions?.GET || {}
+        ).filter(key => actionsResponse.data.actions?.GET[key].filterable),
       };
     }, [location, projectId]),
     {
       jobTemplates: [],
       itemCount: 0,
       actions: {},
+      relatedSearchableKeys: [],
+      searchableKeys: [],
     }
   );
 
@@ -104,20 +118,16 @@ function ProjectJobTemplatesList({ i18n }) {
           toolbarSearchColumns={[
             {
               name: i18n._(t`Name`),
-              key: 'name',
+              key: 'name__icontains',
               isDefault: true,
             },
             {
-              name: i18n._(t`Playbook name`),
-              key: 'job_template__playbook',
+              name: i18n._(t`Created By (Username)`),
+              key: 'created_by__username__icontains',
             },
             {
-              name: i18n._(t`Created by (username)`),
-              key: 'created_by__username',
-            },
-            {
-              name: i18n._(t`Modified by (username)`),
-              key: 'modified_by__username',
+              name: i18n._(t`Modified By (Username)`),
+              key: 'modified_by__username__icontains',
             },
           ]}
           toolbarSortColumns={[
@@ -146,11 +156,12 @@ function ProjectJobTemplatesList({ i18n }) {
               key: 'type',
             },
           ]}
+          toolbarSearchableKeys={searchableKeys}
+          toolbarRelatedSearchableKeys={relatedSearchableKeys}
           renderToolbar={props => (
             <DatalistToolbar
               {...props}
               showSelectAll
-              showExpandCollapse
               isAllSelected={isAllSelected}
               onSelectAll={isSelected =>
                 setSelected(isSelected ? [...jobTemplates] : [])

@@ -20,22 +20,33 @@ function InventorySourcesList({ i18n, nodeResource, onUpdateNodeResource }) {
   const location = useLocation();
 
   const {
-    result: { inventorySources, count },
+    result: { inventorySources, count, relatedSearchableKeys, searchableKeys },
     error,
     isLoading,
     request: fetchInventorySources,
   } = useRequest(
     useCallback(async () => {
       const params = parseQueryString(QS_CONFIG, location.search);
-      const results = await InventorySourcesAPI.read(params);
+      const [response, actionsResponse] = await Promise.all([
+        InventorySourcesAPI.read(params),
+        InventorySourcesAPI.readOptions(),
+      ]);
       return {
-        inventorySources: results.data.results,
-        count: results.data.count,
+        inventorySources: response.data.results,
+        count: response.data.count,
+        relatedSearchableKeys: (
+          actionsResponse?.data?.related_search_fields || []
+        ).map(val => val.slice(0, -8)),
+        searchableKeys: Object.keys(
+          actionsResponse.data.actions?.GET || {}
+        ).filter(key => actionsResponse.data.actions?.GET[key].filterable),
       };
     }, [location]),
     {
       inventorySources: [],
       count: 0,
+      relatedSearchableKeys: [],
+      searchableKeys: [],
     }
   );
 
@@ -68,12 +79,12 @@ function InventorySourcesList({ i18n, nodeResource, onUpdateNodeResource }) {
       toolbarSearchColumns={[
         {
           name: i18n._(t`Name`),
-          key: 'name',
+          key: 'name__icontains',
           isDefault: true,
         },
         {
           name: i18n._(t`Source`),
-          key: 'source',
+          key: 'or__source',
           options: [
             [`file`, i18n._(t`File, directory or script`)],
             [`scm`, i18n._(t`Sourced from a project`)],
@@ -85,7 +96,6 @@ function InventorySourcesList({ i18n, nodeResource, onUpdateNodeResource }) {
             [`openstack`, i18n._(t`OpenStack`)],
             [`rhv`, i18n._(t`Red Hat Virtualization`)],
             [`tower`, i18n._(t`Ansible Tower`)],
-            [`custom`, i18n._(t`Custom script`)],
           ],
         },
       ]}
@@ -95,6 +105,8 @@ function InventorySourcesList({ i18n, nodeResource, onUpdateNodeResource }) {
           key: 'name',
         },
       ]}
+      toolbarSearchableKeys={searchableKeys}
+      toolbarRelatedSearchableKeys={relatedSearchableKeys}
     />
   );
 }

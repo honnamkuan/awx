@@ -20,22 +20,33 @@ function ProjectsList({ i18n, nodeResource, onUpdateNodeResource }) {
   const location = useLocation();
 
   const {
-    result: { projects, count },
+    result: { projects, count, relatedSearchableKeys, searchableKeys },
     error,
     isLoading,
     request: fetchProjects,
   } = useRequest(
     useCallback(async () => {
       const params = parseQueryString(QS_CONFIG, location.search);
-      const results = await ProjectsAPI.read(params);
+      const [response, actionsResponse] = await Promise.all([
+        ProjectsAPI.read(params),
+        ProjectsAPI.readOptions(),
+      ]);
       return {
-        projects: results.data.results,
-        count: results.data.count,
+        projects: response.data.results,
+        count: response.data.count,
+        relatedSearchableKeys: (
+          actionsResponse?.data?.related_search_fields || []
+        ).map(val => val.slice(0, -8)),
+        searchableKeys: Object.keys(
+          actionsResponse.data.actions?.GET || {}
+        ).filter(key => actionsResponse.data.actions?.GET[key].filterable),
       };
     }, [location]),
     {
       projects: [],
       count: 0,
+      relatedSearchableKeys: [],
+      searchableKeys: [],
     }
   );
 
@@ -68,12 +79,12 @@ function ProjectsList({ i18n, nodeResource, onUpdateNodeResource }) {
       toolbarSearchColumns={[
         {
           name: i18n._(t`Name`),
-          key: 'name',
+          key: 'name__icontains',
           isDefault: true,
         },
         {
           name: i18n._(t`Type`),
-          key: 'scm_type',
+          key: 'or__scm_type',
           options: [
             [``, i18n._(t`Manual`)],
             [`git`, i18n._(t`Git`)],
@@ -83,16 +94,16 @@ function ProjectsList({ i18n, nodeResource, onUpdateNodeResource }) {
           ],
         },
         {
-          name: i18n._(t`Source control URL`),
-          key: 'scm_url',
+          name: i18n._(t`Source Control URL`),
+          key: 'scm_url__icontains',
         },
         {
-          name: i18n._(t`Modified by (username)`),
-          key: 'modified_by__username',
+          name: i18n._(t`Modified By (Username)`),
+          key: 'modified_by__username__icontains',
         },
         {
-          name: i18n._(t`Created by (username)`),
-          key: 'created_by__username',
+          name: i18n._(t`Created By (Username)`),
+          key: 'created_by__username__icontains',
         },
       ]}
       toolbarSortColumns={[
@@ -101,6 +112,8 @@ function ProjectsList({ i18n, nodeResource, onUpdateNodeResource }) {
           key: 'name',
         },
       ]}
+      toolbarSearchableKeys={searchableKeys}
+      toolbarRelatedSearchableKeys={relatedSearchableKeys}
     />
   );
 }

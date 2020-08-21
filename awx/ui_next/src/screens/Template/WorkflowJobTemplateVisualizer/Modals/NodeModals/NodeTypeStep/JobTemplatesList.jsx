@@ -20,24 +20,35 @@ function JobTemplatesList({ i18n, nodeResource, onUpdateNodeResource }) {
   const location = useLocation();
 
   const {
-    result: { jobTemplates, count },
+    result: { jobTemplates, count, relatedSearchableKeys, searchableKeys },
     error,
     isLoading,
     request: fetchJobTemplates,
   } = useRequest(
     useCallback(async () => {
       const params = parseQueryString(QS_CONFIG, location.search);
-      const results = await JobTemplatesAPI.read(params, {
-        role_level: 'execute_role',
-      });
+      const [response, actionsResponse] = await Promise.all([
+        JobTemplatesAPI.read(params, {
+          role_level: 'execute_role',
+        }),
+        JobTemplatesAPI.readOptions(),
+      ]);
       return {
-        jobTemplates: results.data.results,
-        count: results.data.count,
+        jobTemplates: response.data.results,
+        count: response.data.count,
+        relatedSearchableKeys: (
+          actionsResponse?.data?.related_search_fields || []
+        ).map(val => val.slice(0, -8)),
+        searchableKeys: Object.keys(
+          actionsResponse.data.actions?.GET || {}
+        ).filter(key => actionsResponse.data.actions?.GET[key].filterable),
       };
     }, [location]),
     {
       jobTemplates: [],
       count: 0,
+      relatedSearchableKeys: [],
+      searchableKeys: [],
     }
   );
 
@@ -70,20 +81,20 @@ function JobTemplatesList({ i18n, nodeResource, onUpdateNodeResource }) {
       toolbarSearchColumns={[
         {
           name: i18n._(t`Name`),
-          key: 'name',
+          key: 'name__icontains',
           isDefault: true,
         },
         {
           name: i18n._(t`Playbook name`),
-          key: 'playbook',
+          key: 'playbook__icontains',
         },
         {
-          name: i18n._(t`Created by (username)`),
-          key: 'created_by__username',
+          name: i18n._(t`Created By (Username)`),
+          key: 'created_by__username__icontains',
         },
         {
-          name: i18n._(t`Modified by (username)`),
-          key: 'modified_by__username',
+          name: i18n._(t`Modified By (Username)`),
+          key: 'modified_by__username__icontains',
         },
       ]}
       toolbarSortColumns={[
@@ -92,6 +103,8 @@ function JobTemplatesList({ i18n, nodeResource, onUpdateNodeResource }) {
           key: 'name',
         },
       ]}
+      toolbarSearchableKeys={searchableKeys}
+      toolbarRelatedSearchableKeys={relatedSearchableKeys}
     />
   );
 }

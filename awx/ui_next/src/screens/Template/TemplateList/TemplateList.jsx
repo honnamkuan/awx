@@ -36,7 +36,14 @@ function TemplateList({ i18n }) {
   const [selected, setSelected] = useState([]);
 
   const {
-    result: { results, count, jtActions, wfjtActions },
+    result: {
+      results,
+      count,
+      jtActions,
+      wfjtActions,
+      relatedSearchableKeys,
+      searchableKeys,
+    },
     error: contentError,
     isLoading,
     request: fetchTemplates,
@@ -47,12 +54,19 @@ function TemplateList({ i18n }) {
         UnifiedJobTemplatesAPI.read(params),
         JobTemplatesAPI.readOptions(),
         WorkflowJobTemplatesAPI.readOptions(),
+        UnifiedJobTemplatesAPI.readOptions(),
       ]);
       return {
         results: responses[0].data.results,
         count: responses[0].data.count,
         jtActions: responses[1].data.actions,
         wfjtActions: responses[2].data.actions,
+        relatedSearchableKeys: (
+          responses[3]?.data?.related_search_fields || []
+        ).map(val => val.slice(0, -8)),
+        searchableKeys: Object.keys(
+          responses[3].data.actions?.GET || {}
+        ).filter(key => responses[3].data.actions?.GET[key].filterable),
       };
     }, [location]),
     {
@@ -60,6 +74,8 @@ function TemplateList({ i18n }) {
       count: 0,
       jtActions: {},
       wfjtActions: {},
+      relatedSearchableKeys: [],
+      searchableKeys: [],
     }
   );
 
@@ -118,6 +134,7 @@ function TemplateList({ i18n }) {
     jtActions && Object.prototype.hasOwnProperty.call(jtActions, 'POST');
   const canAddWFJT =
     wfjtActions && Object.prototype.hasOwnProperty.call(wfjtActions, 'POST');
+  // spreading Set() returns only unique keys
   const addButtonOptions = [];
 
   if (canAddJT) {
@@ -152,16 +169,16 @@ function TemplateList({ i18n }) {
           toolbarSearchColumns={[
             {
               name: i18n._(t`Name`),
-              key: 'name',
+              key: 'name__icontains',
               isDefault: true,
             },
             {
               name: i18n._(t`Description`),
-              key: 'description',
+              key: 'description__icontains',
             },
             {
               name: i18n._(t`Type`),
-              key: 'type',
+              key: 'or__type',
               options: [
                 [`job_template`, i18n._(t`Job Template`)],
                 [`workflow_job_template`, i18n._(t`Workflow Template`)],
@@ -169,15 +186,15 @@ function TemplateList({ i18n }) {
             },
             {
               name: i18n._(t`Playbook name`),
-              key: 'job_template__playbook',
+              key: 'job_template__playbook__icontains',
             },
             {
               name: i18n._(t`Created By (Username)`),
-              key: 'created_by__username',
+              key: 'created_by__username__icontains',
             },
             {
               name: i18n._(t`Modified By (Username)`),
-              key: 'modified_by__username',
+              key: 'modified_by__username__icontains',
             },
           ]}
           toolbarSortColumns={[
@@ -206,11 +223,12 @@ function TemplateList({ i18n }) {
               key: 'type',
             },
           ]}
+          toolbarSearchableKeys={searchableKeys}
+          toolbarRelatedSearchableKeys={relatedSearchableKeys}
           renderToolbar={props => (
             <DatalistToolbar
               {...props}
               showSelectAll
-              showExpandCollapse
               isAllSelected={isAllSelected}
               onSelectAll={handleSelectAll}
               qsConfig={QS_CONFIG}

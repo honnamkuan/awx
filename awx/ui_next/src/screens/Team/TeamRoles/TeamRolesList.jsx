@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 import { withI18n } from '@lingui/react';
 import { t } from '@lingui/macro';
@@ -12,7 +12,7 @@ import {
   Title,
 } from '@patternfly/react-core';
 import { CubesIcon } from '@patternfly/react-icons';
-import { TeamsAPI, RolesAPI } from '../../../api';
+import { TeamsAPI, RolesAPI, UsersAPI } from '../../../api';
 import useRequest, { useDeleteItems } from '../../../util/useRequest';
 import DataListToolbar from '../../../components/DataListToolbar';
 import PaginatedDataList from '../../../components/PaginatedDataList';
@@ -28,17 +28,22 @@ const QS_CONFIG = getQSConfig('roles', {
   order_by: 'id',
 });
 
-function TeamRolesList({ i18n }) {
+function TeamRolesList({ i18n, me, team }) {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const { search } = useLocation();
-  const { id } = useParams();
   const [roleToDisassociate, setRoleToDisassociate] = useState(null);
 
   const {
     isLoading,
     request: fetchRoles,
     contentError,
-    result: { roleCount, roles, options },
+    result: {
+      roleCount,
+      roles,
+      isAdminOfOrg,
+      relatedSearchableKeys,
+      searchableKeys,
+    },
   } = useRequest(
     useCallback(async () => {
       const params = parseQueryString(QS_CONFIG, search);
@@ -46,18 +51,33 @@ function TeamRolesList({ i18n }) {
         {
           data: { results, count },
         },
-        {
-          data: { actions },
-        },
+        { count: orgAdminCount },
+        actionsResponse,
       ] = await Promise.all([
-        TeamsAPI.readRoles(id, params),
-        TeamsAPI.readRoleOptions(id),
+        TeamsAPI.readRoles(team.id, params),
+        UsersAPI.readAdminOfOrganizations(me.id, {
+          id: team.organization,
+        }),
+        TeamsAPI.readRoleOptions(team.id),
       ]);
-      return { roleCount: count, roles: results, options: actions };
-    }, [id, search]),
+      return {
+        roleCount: count,
+        roles: results,
+        isAdminOfOrg: orgAdminCount > 0,
+        relatedSearchableKeys: (
+          actionsResponse?.data?.related_search_fields || []
+        ).map(val => val.slice(0, -8)),
+        searchableKeys: Object.keys(
+          actionsResponse.data.actions?.GET || {}
+        ).filter(key => actionsResponse.data.actions?.GET[key].filterable),
+      };
+    }, [me.id, team.id, team.organization, search]),
     {
       roles: [],
       roleCount: 0,
+      isAdminOfOrg: false,
+      relatedSearchableKeys: [],
+      searchableKeys: [],
     }
   );
 
@@ -79,15 +99,13 @@ function TeamRolesList({ i18n }) {
       setRoleToDisassociate(null);
       await RolesAPI.disassociateTeamRole(
         roleToDisassociate.id,
-        parseInt(id, 10)
+        parseInt(team.id, 10)
       );
-    }, [roleToDisassociate, id]),
+    }, [roleToDisassociate, team.id]),
     { qsConfig: QS_CONFIG, fetchItems: fetchRoles }
   );
 
-  const canAdd =
-    options && Object.prototype.hasOwnProperty.call(options, 'POST');
-
+  const canAdd = team?.summary_fields?.user_capabilities?.edit || isAdminOfOrg;
   const detailUrl = role => {
     const { resource_id, resource_type } = role.summary_fields;
 
@@ -128,21 +146,23 @@ function TeamRolesList({ i18n }) {
         hasContentLoading={isLoading || isDisassociateLoading}
         items={roles}
         itemCount={roleCount}
-        pluralizedItemName={i18n._(t`Teams`)}
+        pluralizedItemName={i18n._(t`Team Roles`)}
         qsConfig={QS_CONFIG}
         toolbarSearchColumns={[
           {
             name: i18n._(t`Role`),
-            key: 'role_field',
+            key: 'role_field__icontains',
             isDefault: true,
           },
         ]}
         toolbarSortColumns={[
           {
-            name: i18n._(t`Name`),
+            name: i18n._(t`ID`),
             key: 'id',
           },
         ]}
+        toolbarSearchableKeys={searchableKeys}
+        toolbarRelatedSearchableKeys={relatedSearchableKeys}
         renderToolbar={props => (
           <DataListToolbar
             {...props}
@@ -157,7 +177,7 @@ function TeamRolesList({ i18n }) {
                         setIsWizardOpen(true);
                       }}
                     >
-                      Add
+                      {i18n._(t`Add`)}
                     </Button>,
                   ]
                 : []),

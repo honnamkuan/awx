@@ -24,24 +24,40 @@ function WorkflowJobTemplatesList({
   const location = useLocation();
 
   const {
-    result: { workflowJobTemplates, count },
+    result: {
+      workflowJobTemplates,
+      count,
+      relatedSearchableKeys,
+      searchableKeys,
+    },
     error,
     isLoading,
     request: fetchWorkflowJobTemplates,
   } = useRequest(
     useCallback(async () => {
       const params = parseQueryString(QS_CONFIG, location.search);
-      const results = await WorkflowJobTemplatesAPI.read(params, {
-        role_level: 'execute_role',
-      });
+      const [response, actionsResponse] = await Promise.all([
+        WorkflowJobTemplatesAPI.read(params, {
+          role_level: 'execute_role',
+        }),
+        WorkflowJobTemplatesAPI.readOptions(),
+      ]);
       return {
-        workflowJobTemplates: results.data.results,
-        count: results.data.count,
+        workflowJobTemplates: response.data.results,
+        count: response.data.count,
+        relatedSearchableKeys: (
+          actionsResponse?.data?.related_search_fields || []
+        ).map(val => val.slice(0, -8)),
+        searchableKeys: Object.keys(
+          actionsResponse.data.actions?.GET || {}
+        ).filter(key => actionsResponse.data.actions?.GET[key].filterable),
       };
     }, [location]),
     {
       workflowJobTemplates: [],
       count: 0,
+      relatedSearchableKeys: [],
+      searchableKeys: [],
     }
   );
 
@@ -74,24 +90,24 @@ function WorkflowJobTemplatesList({
       toolbarSearchColumns={[
         {
           name: i18n._(t`Name`),
-          key: 'name',
+          key: 'name__icontains',
           isDefault: true,
         },
         {
-          name: i18n._(t`Organization (name)`),
-          key: 'organization__name',
+          name: i18n._(t`Organization (Name)`),
+          key: 'organization__name__icontains',
         },
         {
-          name: i18n._(t`Inventory (name)`),
-          key: 'inventory__name',
+          name: i18n._(t`Inventory (Name)`),
+          key: 'inventory__name__icontains',
         },
         {
-          name: i18n._(t`Created by (username)`),
-          key: 'created_by__username',
+          name: i18n._(t`Created By (Username)`),
+          key: 'created_by__username__icontains',
         },
         {
-          name: i18n._(t`Modified by (username)`),
-          key: 'modified_by__username',
+          name: i18n._(t`Modified By (Username)`),
+          key: 'modified_by__username__icontains',
         },
       ]}
       toolbarSortColumns={[
@@ -100,6 +116,8 @@ function WorkflowJobTemplatesList({
           key: 'name',
         },
       ]}
+      toolbarSearchableKeys={searchableKeys}
+      toolbarRelatedSearchableKeys={relatedSearchableKeys}
     />
   );
 }

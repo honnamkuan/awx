@@ -80,7 +80,9 @@ function User({ i18n, setBreadcrumb, me }) {
   }
 
   let showCardHeader = true;
-  if (['edit', 'add'].some(name => location.pathname.includes(name))) {
+  if (
+    ['edit', 'add', 'tokens'].some(name => location.pathname.includes(name))
+  ) {
     showCardHeader = false;
   }
 
@@ -127,11 +129,15 @@ function User({ i18n, setBreadcrumb, me }) {
             </Route>
             {user && (
               <Route path="/users/:id/access">
-                <UserAccessList />
+                <UserAccessList user={user} />
               </Route>
             )}
             <Route path="/users/:id/tokens">
-              <UserTokens id={Number(match.params.id)} />
+              <UserTokens
+                user={user}
+                setBreadcrumb={setBreadcrumb}
+                id={Number(match.params.id)}
+              />
             </Route>
             <Route key="not-found" path="*">
               <ContentError isNotFound>

@@ -47,7 +47,13 @@ function InventoryGroupsList({ i18n }) {
   const { id: inventoryId } = useParams();
 
   const {
-    result: { groups, groupCount, actions },
+    result: {
+      groups,
+      groupCount,
+      actions,
+      relatedSearchableKeys,
+      searchableKeys,
+    },
     error: contentError,
     isLoading,
     request: fetchGroups,
@@ -62,12 +68,20 @@ function InventoryGroupsList({ i18n }) {
         groups: response.data.results,
         groupCount: response.data.count,
         actions: actionsResponse.data.actions,
+        relatedSearchableKeys: (
+          actionsResponse?.data?.related_search_fields || []
+        ).map(val => val.slice(0, -8)),
+        searchableKeys: Object.keys(
+          actionsResponse.data.actions?.GET || {}
+        ).filter(key => actionsResponse.data.actions?.GET[key].filterable),
       };
     }, [inventoryId, location]),
     {
       groups: [],
       groupCount: 0,
       actions: {},
+      relatedSearchableKeys: [],
+      searchableKeys: [],
     }
   );
 
@@ -141,7 +155,7 @@ function InventoryGroupsList({ i18n }) {
         toolbarSearchColumns={[
           {
             name: i18n._(t`Name`),
-            key: 'name',
+            key: 'name__icontains',
             isDefault: true,
           },
           {
@@ -154,12 +168,12 @@ function InventoryGroupsList({ i18n }) {
             },
           },
           {
-            name: i18n._(t`Created by (username)`),
-            key: 'created_by__username',
+            name: i18n._(t`Created By (Username)`),
+            key: 'created_by__username__icontains',
           },
           {
-            name: i18n._(t`Modified by (username)`),
-            key: 'modified_by__username',
+            name: i18n._(t`Modified By (Username)`),
+            key: 'modified_by__username__icontains',
           },
         ]}
         toolbarSortColumns={[
@@ -168,6 +182,8 @@ function InventoryGroupsList({ i18n }) {
             key: 'name',
           },
         ]}
+        toolbarSearchableKeys={searchableKeys}
+        toolbarRelatedSearchableKeys={relatedSearchableKeys}
         renderItem={item => (
           <InventoryGroupItem
             key={item.id}

@@ -29,21 +29,32 @@ function OrganizationLookup({
   history,
 }) {
   const {
-    result: { itemCount, organizations },
+    result: { itemCount, organizations, relatedSearchableKeys, searchableKeys },
     error: contentError,
     request: fetchOrganizations,
   } = useRequest(
     useCallback(async () => {
       const params = parseQueryString(QS_CONFIG, history.location.search);
-      const { data } = await OrganizationsAPI.read(params);
+      const [response, actionsResponse] = await Promise.all([
+        OrganizationsAPI.read(params),
+        OrganizationsAPI.readOptions(),
+      ]);
       return {
-        organizations: data.results,
-        itemCount: data.count,
+        organizations: response.data.results,
+        itemCount: response.data.count,
+        relatedSearchableKeys: (
+          actionsResponse?.data?.related_search_fields || []
+        ).map(val => val.slice(0, -8)),
+        searchableKeys: Object.keys(
+          actionsResponse.data.actions?.GET || {}
+        ).filter(key => actionsResponse.data.actions?.GET[key].filterable),
       };
-    }, [history.location]),
+    }, [history.location.search]),
     {
       organizations: [],
       itemCount: 0,
+      relatedSearchableKeys: [],
+      searchableKeys: [],
     }
   );
 
@@ -80,16 +91,16 @@ function OrganizationLookup({
             searchColumns={[
               {
                 name: i18n._(t`Name`),
-                key: 'name',
+                key: 'name__icontains',
                 isDefault: true,
               },
               {
-                name: i18n._(t`Created by (username)`),
-                key: 'created_by__username',
+                name: i18n._(t`Created By (Username)`),
+                key: 'created_by__username__icontains',
               },
               {
-                name: i18n._(t`Modified by (username)`),
-                key: 'modified_by__username',
+                name: i18n._(t`Modified By (Username)`),
+                key: 'modified_by__username__icontains',
               },
             ]}
             sortColumns={[
@@ -98,6 +109,8 @@ function OrganizationLookup({
                 key: 'name',
               },
             ]}
+            searchableKeys={searchableKeys}
+            relatedSearchableKeys={relatedSearchableKeys}
             readOnly={!canDelete}
             selectItem={item => dispatch({ type: 'SELECT_ITEM', item })}
             deselectItem={item => dispatch({ type: 'DESELECT_ITEM', item })}

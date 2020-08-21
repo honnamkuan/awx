@@ -19,22 +19,33 @@ function OrganizationTeamList({ id, i18n }) {
   const location = useLocation();
 
   const {
-    result: { teams, count },
+    result: { teams, count, relatedSearchableKeys, searchableKeys },
     error,
     isLoading,
     request: fetchTeams,
   } = useRequest(
     useCallback(async () => {
       const params = parseQueryString(QS_CONFIG, location.search);
-      const results = await OrganizationsAPI.readTeams(id, params);
+      const [response, actionsResponse] = await Promise.all([
+        OrganizationsAPI.readTeams(id, params),
+        OrganizationsAPI.readTeamsOptions(id),
+      ]);
       return {
-        teams: results.data.results,
-        count: results.data.count,
+        teams: response.data.results,
+        count: response.data.count,
+        relatedSearchableKeys: (
+          actionsResponse?.data?.related_search_fields || []
+        ).map(val => val.slice(0, -8)),
+        searchableKeys: Object.keys(
+          actionsResponse.data.actions?.GET || {}
+        ).filter(key => actionsResponse.data.actions?.GET[key].filterable),
       };
     }, [id, location]),
     {
       teams: [],
       count: 0,
+      relatedSearchableKeys: [],
+      searchableKeys: [],
     }
   );
 
@@ -53,16 +64,16 @@ function OrganizationTeamList({ id, i18n }) {
       toolbarSearchColumns={[
         {
           name: i18n._(t`Name`),
-          key: 'name',
+          key: 'name__icontains',
           isDefault: true,
         },
         {
           name: i18n._(t`Created by (username)`),
-          key: 'created_by__username',
+          key: 'created_by__username__icontains',
         },
         {
           name: i18n._(t`Modified by (username)`),
-          key: 'modified_by__username',
+          key: 'modified_by__username__icontains',
         },
       ]}
       toolbarSortColumns={[
@@ -71,6 +82,8 @@ function OrganizationTeamList({ id, i18n }) {
           key: 'name',
         },
       ]}
+      toolbarSearchableKeys={searchableKeys}
+      toolbarRelatedSearchableKeys={relatedSearchableKeys}
       renderItem={item => (
         <OrganizationTeamListItem
           key={item.id}
