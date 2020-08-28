@@ -11,7 +11,7 @@ ARG VENV_BASE="{% if not build_dev|bool %}/var/lib/awx{% endif %}/venv"
 ARG COLLECTION_BASE="{% if not build_dev|bool %}/var/lib/awx{% endif %}/vendor/awx_ansible_collections"
 
 # Build container
-FROM centos:8 as builder
+FROM debian:buster as builder
 
 ARG VENV_BASE
 ARG COLLECTION_BASE
@@ -22,38 +22,45 @@ ENV LC_ALL en_US.UTF-8
 
 USER root
 
-# Install build dependencies
-RUN dnf -y update && \
-    dnf -y install epel-release 'dnf-command(config-manager)' && \
-    dnf module -y enable 'postgresql:10' && \
-    dnf config-manager --set-enabled PowerTools && \
-    dnf -y install ansible \
+RUN apt-get update -y
+
+RUN apt-get install -y bzip2 \
+    g++ \
     gcc \
-    gcc-c++ \
     gettext \
-    git-core \
-    glibc-langpack-en \
-    libcurl-devel \
-    libffi-devel \
-    libstdc++.so.6 \
-    libtool-ltdl-devel \
+    git-lfs \
+    libcurl4-nss-dev \
+    libffi-dev \
     make \
-    nodejs \
-    nss \
-    openldap-devel \
-    patch \
-    @postgresql:10 \
-    postgresql-devel \
-    python3-devel \
-    python3-pip \
-    python3-psycopg2 \
+    curl \
     python3-setuptools \
+    python3-lxml \
+    python3-pip \
+    build-essential \
     swig \
     unzip \
-    xmlsec1-devel \
-    xmlsec1-openssl-devel
+    libxmlsec1-dev \ 
+    libxmlsec1-openssl \
+    libssl-dev \
+    libxml2-dev \
+    libxslt-dev \
+    libkrb5-dev \
+    libsasl2-dev \
+    libldap2-dev \
+    zlib1g-dev \
+    pkg-config
 
-RUN python3 -m ensurepip && pip3 install "virtualenv < 20"
+RUN apt-get install -y postgresql \
+    python3-psycopg2 \
+    libpq-dev
+
+RUN python3 -m pip install ansible
+
+RUN pip3 install --upgrade setuptools pip wheel
+
+RUN pip3 install "virtualenv < 20"
+
+
 
 # Install & build requirements
 ADD Makefile /tmp/Makefile
@@ -67,7 +74,8 @@ ADD requirements/requirements_ansible.txt \
     requirements/collections_requirements.yml \
     /tmp/requirements/
 
-RUN cd /tmp && make requirements_awx requirements_ansible_py3
+RUN cd /tmp && make requirements_awx
+RUN cd /tmp && make requirements_ansible_py3
 RUN cd /tmp && make requirements_collections
 
 {% if build_dev|bool %}
@@ -81,7 +89,7 @@ RUN mkdir -p -m 755 /var/lib/awx && echo "{{ awx_version }}" > /var/lib/awx/.tow
 {% endif %}
 
 # Final container(s)
-FROM centos:8
+FROM debian:buster
 
 ARG VENV_BASE
 ARG COLLECTION_BASE
@@ -113,47 +121,47 @@ RUN dnf -y install \
     npm install -g n && n 10.15.0 && dnf remove -y nodejs
 {% endif %}
 
-# Install runtime requirements
-RUN dnf -y update && \
-    dnf -y install https://github.com/krallin/tini/releases/download/v0.18.0/tini_0.18.0.rpm && \
-    dnf -y install epel-release 'dnf-command(config-manager)' && \
-    dnf module -y enable 'postgresql:10' && \
-    dnf config-manager --set-enabled PowerTools && \
-    dnf -y install acl \
-    ansible \
-    bubblewrap \
-    git-core \
-    glibc-langpack-en \
-    krb5-workstation \
-    libcgroup-tools \
-    mercurial \
+RUN apt-get update -y
+
+RUN apt-get install -y git-lfs \
     nginx \
-    @postgresql:10 \
-    python3-devel \
-    python3-libselinux \
-    python3-pip \
-    python3-psycopg2 \
     python3-setuptools \
+    python3-pip \
+    build-essential \
     rsync \
+    libxmlsec1-dev \ 
+    libxmlsec1-openssl \
+    rsyslog \
+    bubblewrap \
+    libcgroup-dev \
+    mercurial \
     subversion \
     sudo \
-    vim-minimal \
-    which \
-    xmlsec1-openssl && \
-    dnf -y --repofrompath gcloud,https://packages.cloud.google.com/yum/repos/cloud-sdk-el8-x86_64 \
-       --setopt gcloud.gpgkey=https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg \
-      install kubectl && \
-    dnf -y install centos-release-stream && dnf -y install "rsyslog >= 8.1911.0" && dnf -y remove centos-release-stream && \
-    dnf -y clean all
+    vim \
+    apt-transport-https \
+    gnupg2 \
+    curl \
+    ca-certificates
 
-RUN python3 -m ensurepip && pip3 install "virtualenv < 20" supervisor {% if build_dev|bool %}flake8{% endif %}
+RUN apt-get install -y postgresql \
+    python3-psycopg2 \
+    libpq-dev
+
+RUN python3 -m pip install ansible
+
+RUN pip3 install --upgrade setuptools pip wheel
+
+RUN pip3 install "virtualenv < 20" supervisor {% if build_dev|bool %}flake8{% endif %}
+
+ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini-armhf /usr/local/bin/tini
+RUN chmod +x /usr/local/bin/tini
 
 RUN rm -rf /root/.cache && rm -rf /tmp/*
 
 # Install OpenShift CLI
-RUN cd /usr/local/bin && \
-    curl -L https://github.com/openshift/origin/releases/download/v3.11.0/openshift-origin-client-tools-v3.11.0-0cbc58b-linux-64bit.tar.gz | \
-    tar -xz --strip-components=1 --wildcards --no-anchored 'oc'
+#RUN cd /usr/local/bin && \
+#    curl -L https://github.com/openshift/origin/releases/download/v3.11.0/openshift-origin-client-tools-v3.11.0-0cbc58b-linux-64bit.tar.gz | \
+#    tar -xz --strip-components=1 --wildcards --no-anchored 'oc'
 
 # Copy app from builder
 {%if build_dev|bool %}
@@ -233,7 +241,7 @@ RUN ln -sf /dev/stdout /var/log/nginx/access.log && \
 {% endif %}
 
 ENV HOME="/var/lib/awx"
-ENV PATH="/usr/pgsql-10/bin:${PATH}"
+ENV PATH="/usr/lib/postgresql/11/bin:${PATH}"
 
 {% if build_dev|bool %}
 EXPOSE 8043 8013 8080 22
